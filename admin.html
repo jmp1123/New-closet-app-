@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vestiary Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 24px; margin-bottom: 20px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .stat-value { font-size: 32px; font-weight: 700; }
+    .stat-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+    .card-header { padding: 16px 20px; border-bottom: 1px solid #eee; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; }
+    th { font-size: 11px; text-transform: uppercase; color: #666; font-weight: 600; }
+    tr:hover { background: #f9f9f9; }
+    .btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .btn-view { background: #000; color: #fff; }
+    .login-box { max-width: 400px; margin: 100px auto; background: #fff; padding: 32px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .login-box h2 { margin-bottom: 20px; }
+    .login-box input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+    .login-box button { width: 100%; padding: 12px; background: #000; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+    .error { color: #dc3545; font-size: 12px; margin-bottom: 12px; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+    .modal.open { display: flex; }
+    .modal-content { background: #fff; padding: 24px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; }
+    .item-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .item-card { background: #f5f5f5; padding: 12px; border-radius: 8px; font-size: 12px; }
+    .item-name { font-weight: 600; margin-bottom: 4px; }
+    .item-cat { color: #666; }
+  </style>
+</head>
+<body>
+  <div id="login-view" class="login-box">
+    <h2>🔐 Vestiary Admin</h2>
+    <div id="login-error" class="error" style="display:none"></div>
+    <input type="password" id="admin-key" placeholder="Admin Secret Key">
+    <button onclick="login()">Access Dashboard</button>
+  </div>
+
+  <div id="dashboard-view" class="container" style="display:none">
+    <h1>✦ Vestiary Admin Dashboard</h1>
+    
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-users">-</div>
+        <div class="stat-label">Total Users</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-items">-</div>
+        <div class="stat-label">Closet Items</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-outfits">-</div>
+        <div class="stat-label">Saved Outfits</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-new">-</div>
+        <div class="stat-label">New This Week</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">All Users</div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>City</th>
+            <th>Items</th>
+            <th>Joined</th>
+            <th>Last Login</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="users-table">
+          <tr><td colspan="8" style="text-align:center;padding:40px;color:#999">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="user-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">User Details</h3>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    // CHANGE THIS to your Railway backend URL
+    const API_URL = 'https://backend-production-e0c52.up.railway.app';
+    let adminKey = '';
+
+    function login() {
+      adminKey = document.getElementById('admin-key').value;
+      if (!adminKey) {
+        showError('Please enter the admin key');
+        return;
+      }
+      
+      fetch(API_URL + '/api/admin/stats', {
+        headers: { 'x-admin-key': adminKey }
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('Invalid admin key');
+        return r.json();
+      })
+      .then(data => {
+        document.getElementById('login-view').style.display = 'none';
+        document.getElementById('dashboard-view').style.display = 'block';
+        loadDashboard();
+      })
+      .catch(err => {
+        showError(err.message);
+      });
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('login-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function loadDashboard() {
+      // Load stats
+      fetch(API_URL + '/api/admin/stats', { headers: { 'x-admin-key': adminKey } })
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('stat-users').textContent = data.totalUsers;
+          document.getElementById('stat-items').textContent = data.totalItems;
+          document.getElementById('stat-outfits').textContent = data.totalOutfits;
+          document.getElementById('stat-new').textContent = data.newUsersThisWeek;
+        });
+
+      // Load users
+      fetch(API_URL + '/api/admin/users', { headers: { 'x-admin-key': adminKey } })
+        .then(r => r.json())
+        .then(users => {
+          const tbody = document.getElementById('users-table');
+          if (users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#999">No users yet</td></tr>';
+            return;
+          }
+          tbody.innerHTML = users.map(u => `
+            <tr>
+              <td>${u.id}</td>
+              <td>${u.email}</td>
+              <td>${u.name || '-'}</td>
+              <td>${u.city || '-'}</td>
+              <td>${u.closet_count}</td>
+              <td>${new Date(u.created_at).toLocaleDateString()}</td>
+              <td>${u.last_login ? new Date(u.last_login).toLocaleDateString() : '-'}</td>
+              <td><button class="btn btn-view" onclick="viewUser(${u.id})">View</button></td>
+            </tr>
+          `).join('');
+        });
+    }
+
+    function viewUser(id) {
+      fetch(API_URL + '/api/admin/users/' + id, { headers: { 'x-admin-key': adminKey } })
+        .then(r => r.json())
+        .then(user => {
+          document.getElementById('modal-title').textContent = user.name || user.email;
+          document.getElementById('modal-body').innerHTML = `
+            <p><strong>Email:</strong> ${user.email}</p>
+            <p><strong>City:</strong> ${user.city || '-'}</p>
+            <p><strong>Joined:</strong> ${new Date(user.created_at).toLocaleString()}</p>
+            <p><strong>Style Moods:</strong> ${(user.style_moods || []).join(', ') || '-'}</p>
+            <hr style="margin:16px 0">
+            <h4>Closet (${user.closet.length} items)</h4>
+            <div class="item-grid" style="margin-top:12px">
+              ${user.closet.map(item => `
+                <div class="item-card">
+                  <div class="item-name">${item.name}</div>
+                  <div class="item-cat">${item.category} • ${item.color || ''}</div>
+                </div>
+              `).join('') || '<p style="color:#999">No items</p>'}
+            </div>
+          `;
+          document.getElementById('user-modal').classList.add('open');
+        });
+    }
+
+    function closeModal() {
+      document.getElementById('user-modal').classList.remove('open');
+    }
+
+    // Allow Enter key to login
+    document.getElementById('admin-key').addEventListener('keypress', e => {
+      if (e.key === 'Enter') login();
+    });
+  </script>
+</body>
+</html>
